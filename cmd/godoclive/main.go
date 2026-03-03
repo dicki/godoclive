@@ -213,8 +213,8 @@ func printJSON(endpoints []model.EndpointDef) error {
 // printSummaryTable prints a human-readable summary table.
 func printSummaryTable(endpoints []model.EndpointDef, verbose bool) error {
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "METHOD\tPATH\tSUMMARY\tAUTH\tSTATUS")
-	fmt.Fprintln(w, "------\t----\t-------\t----\t------")
+	_, _ = fmt.Fprintln(w, "METHOD\tPATH\tSUMMARY\tAUTH\tSTATUS")
+	_, _ = fmt.Fprintln(w, "------\t----\t-------\t----\t------")
 
 	for _, ep := range endpoints {
 		authStr := "-"
@@ -231,12 +231,12 @@ func printSummaryTable(endpoints []model.EndpointDef, verbose bool) error {
 			status = fmt.Sprintf("\u26a0 partial (%d unresolved)", len(ep.Unresolved))
 		}
 
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n",
+		_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n",
 			ep.Method, ep.Path, ep.Summary, authStr, status)
 
 		if verbose && len(ep.Unresolved) > 0 {
 			for _, u := range ep.Unresolved {
-				fmt.Fprintf(w, "\t\t  -> %s\t\t\n", u)
+				_, _ = fmt.Fprintf(w, "\t\t  -> %s\t\t\n", u)
 			}
 		}
 	}
@@ -380,7 +380,7 @@ func loadDotEnv(dir string) map[string]string {
 	if err != nil {
 		return result
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
@@ -456,7 +456,7 @@ func runWatch(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("creating file watcher: %w", err)
 	}
-	defer watcher.Close()
+	defer func() { _ = watcher.Close() }()
 
 	// Walk dir and add all directories containing .go files.
 	if err := addWatchDirs(watcher, dir); err != nil {

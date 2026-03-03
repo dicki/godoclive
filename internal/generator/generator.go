@@ -450,7 +450,7 @@ func ServeWithSSE(dir, addr string) (chan struct{}, error) {
 		for {
 			select {
 			case <-reloadCh:
-				fmt.Fprintf(w, "event: reload\ndata: {}\n\n")
+				_, _ = fmt.Fprintf(w, "event: reload\ndata: {}\n\n")
 				flusher.Flush()
 			case <-r.Context().Done():
 				return
