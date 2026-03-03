@@ -96,15 +96,21 @@
         <button class="modal-close" id="auth-modal-close" aria-label="Close modal">&times;</button>
       </div>
       <div class="modal-body">
-        <div class="auth-section">
-          <div class="auth-section-title">Bearer Token</div>
+        <div class="auth-section" data-auth-scheme="bearer">
+          <div class="auth-section-header">
+            <div class="auth-section-title">Bearer Token</div>
+            <span class="auth-section-status" id="auth-status-bearer"></span>
+          </div>
           <div class="auth-input-group">
             <label class="auth-input-label" for="auth-bearer-token">Token</label>
             <input type="text" class="auth-input" id="auth-bearer-token" placeholder="eyJhbGciOi...">
           </div>
         </div>
-        <div class="auth-section">
-          <div class="auth-section-title">API Key</div>
+        <div class="auth-section" data-auth-scheme="apikey">
+          <div class="auth-section-header">
+            <div class="auth-section-title">API Key</div>
+            <span class="auth-section-status" id="auth-status-apikey"></span>
+          </div>
           <div class="auth-input-group">
             <label class="auth-input-label" for="auth-apikey-header">Header Name</label>
             <input type="text" class="auth-input" id="auth-apikey-header" placeholder="X-API-Key" value="X-API-Key">
@@ -114,8 +120,11 @@
             <input type="text" class="auth-input" id="auth-apikey-value" placeholder="your-api-key">
           </div>
         </div>
-        <div class="auth-section">
-          <div class="auth-section-title">Basic Auth</div>
+        <div class="auth-section" data-auth-scheme="basic">
+          <div class="auth-section-header">
+            <div class="auth-section-title">Basic Auth</div>
+            <span class="auth-section-status" id="auth-status-basic"></span>
+          </div>
           <div class="auth-input-group">
             <label class="auth-input-label" for="auth-basic-user">Username</label>
             <input type="text" class="auth-input" id="auth-basic-user" placeholder="username">

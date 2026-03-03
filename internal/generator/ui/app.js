@@ -322,8 +322,23 @@
     basicPass: ''
   };
 
+  // Compute which auth schemes are actually used by any endpoint
+  var usedSchemes = new Set();
+  (data.endpoints || []).forEach(function (ep) {
+    if (ep.auth && ep.auth.required && ep.auth.schemes) {
+      ep.auth.schemes.forEach(function (s) { usedSchemes.add(s); });
+    }
+  });
+
   function hasAuth() {
     return !!(globalAuth.bearer || globalAuth.apikeyValue || globalAuth.basicUser);
+  }
+
+  function hasAuthFor(scheme) {
+    if (scheme === 'bearer') return !!globalAuth.bearer;
+    if (scheme === 'apikey') return !!globalAuth.apikeyValue;
+    if (scheme === 'basic') return !!globalAuth.basicUser;
+    return false;
   }
 
   function getAuthType() {
@@ -495,12 +510,13 @@
 
     var lines = ['curl -X ' + ep.method + ' ' + JSON.stringify(url)];
 
-    // Auth headers
-    if (globalAuth.bearer) {
+    // Auth headers — use the endpoint's required scheme
+    var epScheme = (ep.auth && ep.auth.required && ep.auth.schemes && ep.auth.schemes.length > 0) ? ep.auth.schemes[0] : null;
+    if (epScheme === 'bearer' && globalAuth.bearer) {
       lines.push('  -H "Authorization: Bearer ' + globalAuth.bearer + '"');
-    } else if (globalAuth.apikeyValue) {
+    } else if (epScheme === 'apikey' && globalAuth.apikeyValue) {
       lines.push('  -H "' + globalAuth.apikeyHeader + ': ' + globalAuth.apikeyValue + '"');
-    } else if (globalAuth.basicUser) {
+    } else if (epScheme === 'basic' && globalAuth.basicUser) {
       lines.push('  -u "' + globalAuth.basicUser + ':' + globalAuth.basicPass + '"');
     }
 
@@ -1036,12 +1052,15 @@
   }
 
   function renderTryItAuth(ep) {
-    if (ep.auth && ep.auth.required) {
-      if (hasAuth()) {
-        var t = getAuthType();
-        return ICON_LOCK + ' <span>' + t + ' token configured globally</span>';
+    if (ep.auth && ep.auth.required && ep.auth.schemes && ep.auth.schemes.length > 0) {
+      var scheme = ep.auth.schemes[0];
+      if (hasAuthFor(scheme)) {
+        return ICON_LOCK + ' <span>' + scheme + ' configured</span>';
       }
-      return '<span class="try-it-auth warning">&#9888; No auth configured — this request will likely fail</span>';
+      if (hasAuth()) {
+        return '<span class="try-it-auth warning">&#9888; This endpoint requires ' + esc(scheme) + ' auth — configure it in Authorize</span>';
+      }
+      return '<span class="try-it-auth warning">&#9888; No ' + esc(scheme) + ' auth configured — this request will likely fail</span>';
     }
     return '<span>No auth required</span>';
   }
@@ -1194,12 +1213,13 @@
       }
     });
 
-    // Auth
-    if (globalAuth.bearer) {
+    // Auth — use the endpoint's required scheme
+    var epScheme = (ep.auth && ep.auth.required && ep.auth.schemes && ep.auth.schemes.length > 0) ? ep.auth.schemes[0] : null;
+    if (epScheme === 'bearer' && globalAuth.bearer) {
       headers['Authorization'] = 'Bearer ' + globalAuth.bearer;
-    } else if (globalAuth.apikeyValue) {
+    } else if (epScheme === 'apikey' && globalAuth.apikeyValue) {
       headers[globalAuth.apikeyHeader] = globalAuth.apikeyValue;
-    } else if (globalAuth.basicUser) {
+    } else if (epScheme === 'basic' && globalAuth.basicUser) {
       headers['Authorization'] = 'Basic ' + btoa(globalAuth.basicUser + ':' + globalAuth.basicPass);
     }
 
@@ -1323,16 +1343,47 @@
   var authSave = document.getElementById('auth-modal-save');
   var authClear = document.getElementById('auth-modal-clear');
 
+  function updateModalSectionVisibility() {
+    authModal.querySelectorAll('.auth-section[data-auth-scheme]').forEach(function (section) {
+      var scheme = section.getAttribute('data-auth-scheme');
+      section.style.display = usedSchemes.has(scheme) ? '' : 'none';
+    });
+  }
+
+  function updateModalStatusIndicators() {
+    var indicators = {
+      bearer: document.getElementById('auth-status-bearer'),
+      apikey: document.getElementById('auth-status-apikey'),
+      basic: document.getElementById('auth-status-basic')
+    };
+    Object.keys(indicators).forEach(function (scheme) {
+      var el = indicators[scheme];
+      if (!el) return;
+      if (hasAuthFor(scheme)) {
+        el.textContent = '\u2713 Configured';
+        el.className = 'auth-section-status configured';
+      } else {
+        el.textContent = '';
+        el.className = 'auth-section-status';
+      }
+    });
+  }
+
   authBtn.addEventListener('click', function () {
     authModal.classList.add('open');
+    // Hide sections for schemes not used by any endpoint
+    updateModalSectionVisibility();
     // Populate fields
     document.getElementById('auth-bearer-token').value = globalAuth.bearer;
     document.getElementById('auth-apikey-header').value = globalAuth.apikeyHeader;
     document.getElementById('auth-apikey-value').value = globalAuth.apikeyValue;
     document.getElementById('auth-basic-user').value = globalAuth.basicUser;
     document.getElementById('auth-basic-pass').value = globalAuth.basicPass;
-    // Focus first input
-    document.getElementById('auth-bearer-token').focus();
+    // Update status indicators
+    updateModalStatusIndicators();
+    // Focus first visible input
+    var firstVisible = authModal.querySelector('.auth-section[data-auth-scheme]:not([style*="display: none"]) .auth-input');
+    if (firstVisible) firstVisible.focus();
   });
 
   authClose.addEventListener('click', function () {
@@ -1357,6 +1408,7 @@
     globalAuth.apikeyValue = document.getElementById('auth-apikey-value').value.trim();
     globalAuth.basicUser = document.getElementById('auth-basic-user').value.trim();
     globalAuth.basicPass = document.getElementById('auth-basic-pass').value;
+    updateModalStatusIndicators();
     authModal.classList.remove('open');
     updateAuthUI();
   });
