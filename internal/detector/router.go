@@ -14,6 +14,7 @@ const (
 	RouterKindChi     RouterKind = "chi"
 	RouterKindGin     RouterKind = "gin"
 	RouterKindStdlib  RouterKind = "stdlib"
+	RouterKindGorilla RouterKind = "gorilla"
 	RouterKindUnknown RouterKind = "unknown"
 )
 
@@ -23,7 +24,7 @@ const (
 // Stdlib detection requires actual route registration calls (http.HandleFunc,
 // http.Handle, http.NewServeMux), not just net/http imports.
 func DetectRouter(pkgs []*packages.Package) RouterKind {
-	var chiImports, ginImports int
+	var chiImports, ginImports, gorillaImports int
 
 	packages.Visit(pkgs, func(pkg *packages.Package) bool {
 		for imp := range pkg.Imports {
@@ -32,6 +33,9 @@ func DetectRouter(pkgs []*packages.Package) RouterKind {
 			}
 			if isGinImport(imp) {
 				ginImports++
+			}
+			if isGorillaImport(imp) {
+				gorillaImports++
 			}
 		}
 		return true
@@ -42,6 +46,8 @@ func DetectRouter(pkgs []*packages.Package) RouterKind {
 		return RouterKindChi
 	case ginImports > 0:
 		return RouterKindGin
+	case gorillaImports > 0:
+		return RouterKindGorilla
 	}
 
 	// No third-party router found. Check for stdlib mux usage.
@@ -110,4 +116,8 @@ func isChiImport(path string) bool {
 func isGinImport(path string) bool {
 	return path == "github.com/gin-gonic/gin" ||
 		strings.HasPrefix(path, "github.com/gin-gonic/gin/")
+}
+
+func isGorillaImport(path string) bool {
+	return path == "github.com/gorilla/mux"
 }

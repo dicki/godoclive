@@ -48,3 +48,5 @@ GORILLA_MUX_AGENT_PROMPT.md
 /gin-e2e-test
 /stdlib-e2e-test
 /gin-e2e-docs
+/gorilla-e2e-test
+/gorilla-e2e-docs

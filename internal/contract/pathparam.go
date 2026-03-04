@@ -82,6 +82,53 @@ func upgradePathParamTypes(params []model.ParamDef, body *ast.BlockStmt, pn reso
 		paramIdx[p.Name] = i
 	}
 
+	// Track variables assigned from mux.Vars(r) for indirect access patterns:
+	//   vars := mux.Vars(r)
+	//   id := vars["id"]
+	muxVarsIdents := make(map[string]bool)
+
+	// Also track variable→param name mappings for vars["id"] → variable "id".
+	varToParam := make(map[string]string)
+
+	// First pass: find mux.Vars() assignments and vars["key"] assignments.
+	for _, stmt := range body.List {
+		assign, ok := stmt.(*ast.AssignStmt)
+		if !ok || len(assign.Lhs) == 0 || len(assign.Rhs) == 0 {
+			continue
+		}
+		lhs, ok := assign.Lhs[0].(*ast.Ident)
+		if !ok {
+			continue
+		}
+
+		// vars := mux.Vars(r)
+		if call, ok := assign.Rhs[0].(*ast.CallExpr); ok {
+			if sel, ok := call.Fun.(*ast.SelectorExpr); ok {
+				if ident, ok := sel.X.(*ast.Ident); ok {
+					if ident.Name == "mux" && sel.Sel.Name == "Vars" {
+						muxVarsIdents[lhs.Name] = true
+						continue
+					}
+				}
+			}
+		}
+
+		// id := vars["key"] or id := mux.Vars(r)["key"]
+		if idx, ok := assign.Rhs[0].(*ast.IndexExpr); ok {
+			// Direct: mux.Vars(r)["key"]
+			if name := extractGorillaPathParam(assign.Rhs[0]); name != "" {
+				varToParam[lhs.Name] = name
+				continue
+			}
+			// Indirect: vars["key"] where vars is a mux.Vars result
+			if ident, ok := idx.X.(*ast.Ident); ok && muxVarsIdents[ident.Name] {
+				if key := extractStringLit(idx.Index); key != "" {
+					varToParam[lhs.Name] = key
+				}
+			}
+		}
+	}
+
 	// Walk the body looking for strconv.Atoi / strconv.ParseInt / uuid.Parse
 	// wrapping a path param accessor.
 	ast.Inspect(body, func(n ast.Node) bool {
@@ -93,11 +140,24 @@ func upgradePathParamTypes(params []model.ParamDef, body *ast.BlockStmt, pn reso
 		fnName := callFuncName(call)
 		switch fnName {
 		case "strconv.Atoi", "strconv.ParseInt", "strconv.ParseUint":
-			// Check if the argument is a path param accessor.
 			if len(call.Args) >= 1 {
 				if name := extractPathParamName(call.Args[0], pn); name != "" {
 					if idx, ok := paramIdx[name]; ok {
 						params[idx].Type = "integer"
+					}
+				}
+				// Check gorilla mux.Vars(r)["key"] direct pattern.
+				if name := extractGorillaPathParam(call.Args[0]); name != "" {
+					if idx, ok := paramIdx[name]; ok {
+						params[idx].Type = "integer"
+					}
+				}
+				// Check indirect variable pattern: strconv.Atoi(id) where id came from vars["id"].
+				if ident, ok := call.Args[0].(*ast.Ident); ok {
+					if paramName, ok := varToParam[ident.Name]; ok {
+						if idx, ok := paramIdx[paramName]; ok {
+							params[idx].Type = "integer"
+						}
 					}
 				}
 			}
@@ -106,6 +166,18 @@ func upgradePathParamTypes(params []model.ParamDef, body *ast.BlockStmt, pn reso
 				if name := extractPathParamName(call.Args[0], pn); name != "" {
 					if idx, ok := paramIdx[name]; ok {
 						params[idx].Type = "uuid"
+					}
+				}
+				if name := extractGorillaPathParam(call.Args[0]); name != "" {
+					if idx, ok := paramIdx[name]; ok {
+						params[idx].Type = "uuid"
+					}
+				}
+				if ident, ok := call.Args[0].(*ast.Ident); ok {
+					if paramName, ok := varToParam[ident.Name]; ok {
+						if idx, ok := paramIdx[paramName]; ok {
+							params[idx].Type = "uuid"
+						}
 					}
 				}
 			}
@@ -149,6 +221,28 @@ func extractPathParamName(expr ast.Expr, pn resolver.HandlerParamNames) string {
 		}
 	}
 
+	return ""
+}
+
+// extractGorillaPathParam checks if expr is mux.Vars(r)["name"] (IndexExpr)
+// and returns the param name.
+func extractGorillaPathParam(expr ast.Expr) string {
+	idx, ok := expr.(*ast.IndexExpr)
+	if !ok {
+		return ""
+	}
+	// Check that X is mux.Vars(r)
+	call, ok := idx.X.(*ast.CallExpr)
+	if !ok {
+		return ""
+	}
+	if sel, ok := call.Fun.(*ast.SelectorExpr); ok {
+		if ident, ok := sel.X.(*ast.Ident); ok {
+			if ident.Name == "mux" && sel.Sel.Name == "Vars" {
+				return extractStringLit(idx.Index)
+			}
+		}
+	}
 	return ""
 }
 

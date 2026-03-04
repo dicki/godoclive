@@ -1174,6 +1174,19 @@ func TestPipeline_AccuracyReport(t *testing.T) {
 				{"GET", "/products"},
 			},
 		},
+		{
+			name: "gorilla-basic",
+			expectedRoutes: []struct{ method, path string }{
+				{"GET", "/users"},
+				{"POST", "/users"},
+				{"GET", "/users/{id}"},
+				{"DELETE", "/users/{id}"},
+				{"ANY", "/health"},
+				{"GET", "/api/v1/items"},
+				{"GET", "/api/v1/items/{id}"},
+				{"GET", "/admin/dashboard"},
+			},
+		},
 	}
 
 	var totalExpected, totalDetected int
@@ -1373,7 +1386,7 @@ func TestPipeline_AllProjects_Build(t *testing.T) {
 	projects := []string{
 		"chi-basic", "chi-nested", "chi-inline", "chi-helpers",
 		"gin-basic", "gin-groups", "gin-helpers",
-		"multipart", "mixed-auth", "gin-bind-query",
+		"multipart", "mixed-auth", "gin-bind-query", "gorilla-basic",
 	}
 	for _, name := range projects {
 		t.Run(name, func(t *testing.T) {
@@ -1584,6 +1597,202 @@ func TestPipeline_StdlibBasic_ProductHandler(t *testing.T) {
 	}
 	if !has200 {
 		t.Error("missing 200 response")
+	}
+}
+
+// --- gorilla-basic integration tests ---
+
+func TestPipeline_GorillaBasic_EndpointCount(t *testing.T) {
+	dir := testdataDir("gorilla-basic")
+	eps, err := pipeline.RunPipeline(dir, "./...", nil)
+	if err != nil {
+		t.Fatalf("RunPipeline: %v", err)
+	}
+	if len(eps) < 8 {
+		t.Fatalf("expected at least 8 endpoints, got %d", len(eps))
+	}
+}
+
+func TestPipeline_GorillaBasic_MethodRouting(t *testing.T) {
+	dir := testdataDir("gorilla-basic")
+	eps, err := pipeline.RunPipeline(dir, "./...", nil)
+	if err != nil {
+		t.Fatalf("RunPipeline: %v", err)
+	}
+
+	// .Methods("GET") routes
+	getUsers := findEndpoint(eps, "GET", "/users")
+	if getUsers == nil {
+		t.Error("GET /users should exist")
+	}
+
+	// .Methods("POST") routes
+	postUsers := findEndpoint(eps, "POST", "/users")
+	if postUsers == nil {
+		t.Error("POST /users should exist")
+	}
+
+	// .Methods("DELETE") routes
+	deleteUser := findEndpoint(eps, "DELETE", "/users/{id}")
+	if deleteUser == nil {
+		t.Error("DELETE /users/{id} should exist")
+	}
+
+	// No .Methods() → ANY
+	health := findEndpoint(eps, "ANY", "/health")
+	if health == nil {
+		t.Error("ANY /health should exist")
+	}
+}
+
+func TestPipeline_GorillaBasic_Subrouter(t *testing.T) {
+	dir := testdataDir("gorilla-basic")
+	eps, err := pipeline.RunPipeline(dir, "./...", nil)
+	if err != nil {
+		t.Fatalf("RunPipeline: %v", err)
+	}
+
+	// PathPrefix("/api/v1").Subrouter() routes
+	listItems := findEndpoint(eps, "GET", "/api/v1/items")
+	if listItems == nil {
+		t.Error("GET /api/v1/items should exist")
+	}
+
+	getItem := findEndpoint(eps, "GET", "/api/v1/items/{id}")
+	if getItem == nil {
+		t.Error("GET /api/v1/items/{id} should exist")
+	}
+
+	// Nested subrouter
+	dashboard := findEndpoint(eps, "GET", "/admin/dashboard")
+	if dashboard == nil {
+		t.Error("GET /admin/dashboard should exist")
+	}
+}
+
+func TestPipeline_GorillaBasic_PathParams(t *testing.T) {
+	dir := testdataDir("gorilla-basic")
+	eps, err := pipeline.RunPipeline(dir, "./...", nil)
+	if err != nil {
+		t.Fatalf("RunPipeline: %v", err)
+	}
+
+	getUser := findEndpoint(eps, "GET", "/users/{id}")
+	if getUser == nil {
+		t.Fatal("GET /users/{id} not found")
+	}
+	found := false
+	for _, p := range getUser.Request.PathParams {
+		if p.Name == "id" {
+			found = true
+			if !p.Required {
+				t.Error("path param 'id' should be required")
+			}
+		}
+	}
+	if !found {
+		t.Error("missing path param 'id'")
+	}
+
+	// GetItem uses strconv.Atoi → type should be upgraded to integer.
+	getItem := findEndpoint(eps, "GET", "/api/v1/items/{id}")
+	if getItem == nil {
+		t.Fatal("GET /api/v1/items/{id} not found")
+	}
+	for _, p := range getItem.Request.PathParams {
+		if p.Name == "id" {
+			if p.Type != "integer" {
+				t.Errorf("path param 'id' type = %q, want %q (strconv.Atoi upgrade)", p.Type, "integer")
+			}
+		}
+	}
+}
+
+func TestPipeline_GorillaBasic_QueryParams(t *testing.T) {
+	dir := testdataDir("gorilla-basic")
+	eps, err := pipeline.RunPipeline(dir, "./...", nil)
+	if err != nil {
+		t.Fatalf("RunPipeline: %v", err)
+	}
+
+	listUsers := findEndpoint(eps, "GET", "/users")
+	if listUsers == nil {
+		t.Fatal("GET /users not found")
+	}
+
+	var foundPage, foundLimit bool
+	for _, p := range listUsers.Request.QueryParams {
+		if p.Name == "page" {
+			foundPage = true
+			if !p.Required {
+				t.Error("page should be required")
+			}
+		}
+		if p.Name == "limit" {
+			foundLimit = true
+		}
+	}
+	if !foundPage {
+		t.Error("missing query param 'page'")
+	}
+	if !foundLimit {
+		t.Error("missing query param 'limit'")
+	}
+}
+
+func TestPipeline_GorillaBasic_RequestBody(t *testing.T) {
+	dir := testdataDir("gorilla-basic")
+	eps, err := pipeline.RunPipeline(dir, "./...", nil)
+	if err != nil {
+		t.Fatalf("RunPipeline: %v", err)
+	}
+
+	createUser := findEndpoint(eps, "POST", "/users")
+	if createUser == nil {
+		t.Fatal("POST /users not found")
+	}
+	if createUser.Request.Body == nil {
+		t.Error("POST /users should have a request body")
+	}
+}
+
+func TestPipeline_GorillaBasic_Middleware(t *testing.T) {
+	dir := testdataDir("gorilla-basic")
+	eps, err := pipeline.RunPipeline(dir, "./...", nil)
+	if err != nil {
+		t.Fatalf("RunPipeline: %v", err)
+	}
+
+	// /api/v1/* routes should have authMiddleware → bearer auth.
+	listItems := findEndpoint(eps, "GET", "/api/v1/items")
+	if listItems == nil {
+		t.Fatal("GET /api/v1/items not found")
+	}
+	if !listItems.Auth.Required {
+		t.Error("GET /api/v1/items should require auth")
+	}
+
+	// /admin/* routes should also have authMiddleware.
+	dashboard := findEndpoint(eps, "GET", "/admin/dashboard")
+	if dashboard == nil {
+		t.Fatal("GET /admin/dashboard not found")
+	}
+	if !dashboard.Auth.Required {
+		t.Error("GET /admin/dashboard should require auth")
+	}
+}
+
+func TestPipeline_GorillaBasic_RegexParam(t *testing.T) {
+	dir := testdataDir("gorilla-basic")
+	eps, err := pipeline.RunPipeline(dir, "./...", nil)
+	if err != nil {
+		t.Fatalf("RunPipeline: %v", err)
+	}
+
+	// {id:[0-9]+} should be normalized to {id}
+	getItem := findEndpoint(eps, "GET", "/api/v1/items/{id}")
+	if getItem == nil {
+		t.Error("regex-constrained path should be normalized to {id}")
 	}
 }
 
