@@ -17,7 +17,7 @@
 ---
 
 > **Zero annotations. Zero code changes. Just your existing Go handlers.**
-> GoDoc Live statically analyzes your chi, gin, and net/http stdlib routers, extracts every route, parameter, request body, and response — then generates interactive API documentation.
+> GoDoc Live statically analyzes your chi, gin, gorilla/mux, and net/http stdlib routers, extracts every route, parameter, request body, and response — then generates interactive API documentation.
 
 ## Installation
 
@@ -67,7 +67,7 @@ GoDoc Live uses `go/ast` and `go/types` to extract everything automatically:
 | **chi** (`go-chi/chi/v5`) | Done | Route, Group, Mount, inline handlers |
 | **gin** (`gin-gonic/gin`) | Done | Groups, Use chains, ShouldBindJSON |
 | **net/http** (Go 1.22+ stdlib) | Done | `"METHOD /path"` patterns, `r.PathValue()`, `http.Handler` |
-| gorilla/mux | Planned | — |
+| **gorilla/mux** (`gorilla/mux`) | Done | `HandleFunc().Methods()`, `PathPrefix().Subrouter()`, `mux.Vars()`, regex params |
 | echo | Planned | — |
 | fiber | Planned | — |
 
@@ -194,7 +194,7 @@ auth:
 ```
 
 1. **Load** — Uses `go/packages` to load and type-check your Go source code
-2. **Detect** — Identifies the router framework (chi or gin) from imports
+2. **Detect** — Identifies the router framework (chi, gin, gorilla/mux, or stdlib) from imports
 3. **Extract** — Walks `main()` and `init()` AST to find route registrations
 4. **Resolve** — Resolves handler expressions to function declarations
 5. **Contract** — Extracts path params, query params, headers, body, and responses from handler ASTs
@@ -226,22 +226,22 @@ err = godoclive.Generate(endpoints,
 
 ## Accuracy (Phase 1)
 
-Measured across 11 testdata projects with 42 endpoints:
+Measured across 12 testdata projects with 50 endpoints:
 
 | Feature | Accuracy | Target |
 |---------|----------|--------|
-| Route detection | **100%** (42 endpoints) | 95% |
-| Path params | **100%** (42 endpoints) | 99% |
-| Query params | **100%** (42 endpoints) | 85% |
-| Response status codes | **100%** (42 endpoints) | 85% |
-| Auth detection | **100%** (42 endpoints) | 87% |
+| Route detection | **100%** (50 endpoints) | 95% |
+| Path params | **100%** (50 endpoints) | 99% |
+| Query params | **100%** (50 endpoints) | 85% |
+| Response status codes | **100%** (50 endpoints) | 85% |
+| Auth detection | **100%** (50 endpoints) | 87% |
 
 ## Roadmap
 
 | Phase | Scope | Status |
 |-------|-------|--------|
-| **1** | chi + gin + net/http stdlib, full contract extraction, helper tracing, interactive docs UI | Done |
-| **2** | gorilla/mux, echo, fiber, OpenAPI 3.1 export | Planned |
+| **1** | chi + gin + net/http stdlib + gorilla/mux, full contract extraction, helper tracing, interactive docs UI | Done |
+| **2** | echo, fiber, OpenAPI 3.1 export | Planned |
 | **3** | VS Code extension, GitHub Action integration | Planned |
 | **4** | Multi-service gateway view, API version diff | Planned |
 
