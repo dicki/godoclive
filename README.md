@@ -10,43 +10,47 @@
     <a href="https://pkg.go.dev/github.com/syst3mctl/godoclive"><img src="https://img.shields.io/badge/go.dev-reference-007d9c?style=flat-square&logo=go&logoColor=white" alt="Go Reference"></a>
     <a href="https://github.com/syst3mctl/godoclive/releases"><img src="https://img.shields.io/github/v/release/syst3mctl/godoclive?style=flat-square&color=blue" alt="Release"></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License: MIT"></a>
-        <a href="https://codecov.io/gh/syst3mctl/godoclive/branch/main/graph/badge.svg"><img src="https://codecov.io/gh/syst3mctl/godoclive/branch/main/graph/badge.svg" alt="Codecov"></a>
+    <a href="https://codecov.io/gh/syst3mctl/godoclive/branch/main/graph/badge.svg"><img src="https://codecov.io/gh/syst3mctl/godoclive/branch/main/graph/badge.svg" alt="Codecov"></a>
   </p>
 </p>
 
----
 
-> **Zero annotations. Zero code changes. Just your existing Go handlers.**
-> GoDoc Live statically analyzes your chi, gin, gorilla/mux, and net/http stdlib routers, extracts every route, parameter, request body, and response — then generates interactive API documentation and OpenAPI 3.1.0 specs.
+<img src="assets/demo.gif"
+     alt="GoDoc Live demo" width="800">
 
-## Installation
 
-```bash
-go install github.com/syst3mctl/godoclive/cmd/godoclive@latest
-```
+> **Your API docs are already in your code. GoDoc Live just reads them.**
+>
+> GoDoc Live uses `go/ast` and `go/types` — the same packages the Go compiler uses — to walk your source, extract every route, parameter, request body, response type, and auth pattern, then generates an interactive docs site and OpenAPI 3.1.0 spec. No YAML to maintain. No annotations to add. No code to change.
 
 ## Quickstart
 
 ```bash
-# Install
 go install github.com/syst3mctl/godoclive/cmd/godoclive@latest
-
-# Generate docs from your project
 godoclive generate ./...
-
-# Open the docs
 open docs/index.html
 ```
 
-Or serve with **live reload**:
+Or serve with **live reload** — docs update as you save:
 
 ```bash
-godoclive watch ./... --serve :8080
+godoclive watch --serve :8080 ./...
 ```
 
-## What It Detects
+## Why GoDoc Live?
 
-GoDoc Live uses `go/ast` and `go/types` to extract everything automatically:
+API docs written by hand drift. Someone adds a query param and forgets the spec. Someone changes a status code and the YAML still says 200. Six months later your docs and your code contradict each other.
+
+GoDoc Live has no drift problem — it reads the source of truth directly.
+
+| | GoDoc Live | Swagger annotations | Manual OpenAPI |
+|---|---|---|---|
+| Setup | `go install` | Add annotations to every handler | Write YAML by hand |
+| Stays in sync | Always | Only if you update annotations | Only if you update YAML |
+| Code changes required | None | Yes | No |
+| Works on existing code | Yes | Partial | No |
+
+## What It Detects
 
 | Feature | Description |
 |---------|-------------|
@@ -73,24 +77,7 @@ GoDoc Live uses `go/ast` and `go/types` to extract everything automatically:
 
 ## CLI Reference
 
-### `godoclive analyze [packages]`
-
-Run analysis and print a contract summary to stdout.
-
-```bash
-godoclive analyze ./...
-godoclive analyze --json ./...        # Machine-readable output
-godoclive analyze --verbose ./...     # Show unresolved details
-```
-
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--json` | `false` | Output as machine-readable JSON |
-| `--verbose` | `false` | Show full unresolved list per endpoint |
-
 ### `godoclive generate [packages]`
-
-Run analysis and generate a documentation site.
 
 ```bash
 godoclive generate ./...
@@ -110,14 +97,28 @@ godoclive generate --openapi ./openapi.json ./... # Also emit OpenAPI 3.1.0 spec
 | `--serve` | — | Start HTTP server after generation (e.g., `:8080`) |
 | `--openapi` | — | Also generate an OpenAPI 3.1.0 spec at the given path (`.json` or `.yaml`) |
 
+### `godoclive analyze [packages]`
+
+Run analysis and print a contract summary to stdout.
+
+```bash
+godoclive analyze ./...
+godoclive analyze --json ./...        # Machine-readable output
+godoclive analyze --verbose ./...     # Show unresolved details
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--json` | `false` | Output as machine-readable JSON |
+| `--verbose` | `false` | Show full unresolved list per endpoint |
+
 ### `godoclive openapi [packages]`
 
-Generate an OpenAPI 3.1.0 specification from analyzed endpoints (without the HTML docs).
+Generate an OpenAPI 3.1.0 specification without the HTML docs.
 
 ```bash
 godoclive openapi ./...                          # Outputs ./openapi.json
 godoclive openapi --output ./api.yaml ./...      # YAML format (inferred from extension)
-godoclive openapi --format yaml ./...            # Explicit format override
 godoclive openapi --server https://api.example.com ./...
 ```
 
@@ -332,5 +333,5 @@ MIT — see [LICENSE](LICENSE).
 ---
 
 <p align="center">
-  Made with 💙 and <code>go/ast</code>
+  Made with love and <code>go/ast</code>
 </p>
